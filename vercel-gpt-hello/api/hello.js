@@ -1,4 +1,6 @@
-export default function handler(req, res) {
+import clientPromise from '../lib/mongodb.js';
+
+export default async function handler(req, res) {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -7,12 +9,30 @@ export default function handler(req, res) {
     return res.status(200).end();
   }
 
-  // Set CORS headers for actual request
+  // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
 
-  // Return hello message
-  res.status(200).json({
-    message: 'Hello!',
-    timestamp: new Date().toISOString()
-  });
+  try {
+    const client = await clientPromise;
+    const db = client.db('gpt-hello-app');
+    const collection = db.collection('messages');
+
+    const message = {
+      text: 'Hello!',
+      timestamp: new Date(),
+      source: 'chatgpt'
+    };
+
+    // Store message in MongoDB
+    await collection.insertOne(message);
+
+    // Return response
+    res.status(200).json({
+      message: message.text,
+      timestamp: message.timestamp.toISOString()
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Failed to store message' });
+  }
 }

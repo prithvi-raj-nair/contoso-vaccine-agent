@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPT Hello App</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      color: #fff;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      color: #888;
+      margin-bottom: 30px;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      color: #888;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4ade80;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .messages-container {
+      width: 100%;
+      max-width: 500px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 20px;
+      min-height: 300px;
+    }
+    .messages-header {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 15px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .messages-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .message {
+      background: rgba(74, 222, 128, 0.1);
+      border: 1px solid rgba(74, 222, 128, 0.3);
+      border-radius: 8px;
+      padding: 12px 16px;
+      animation: slideIn 0.3s ease-out;
+    }
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .message-text {
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+    .message-time {
+      font-size: 12px;
+      color: #888;
+    }
+    .empty-state {
+      text-align: center;
+      color: #666;
+      padding: 40px 20px;
+    }
+    .empty-state p {
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>GPT Hello App</h1>
+  <p class="subtitle">Messages from ChatGPT appear here in real-time</p>
+
+  <div class="status">
+    <div class="status-dot"></div>
+    <span>Listening for messages...</span>
+  </div>
+
+  <div class="messages-container">
+    <div class="messages-header">Recent Messages</div>
+    <div class="messages-list" id="messagesList">
+      <div class="empty-state">
+        <p>No messages yet</p>
+        <p>Ask ChatGPT to "say hello" to see messages appear here!</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let lastMessageIds = new Set();
+
+    async function fetchMessages() {
+      try {
+        const response = await fetch('/api/messages');
+        const data = await response.json();
+
+        if (data.messages && data.messages.length > 0) {
+          const messagesList = document.getElementById('messagesList');
+
+          // Check for new messages
+          const newMessages = data.messages.filter(msg => !lastMessageIds.has(msg._id));
+
+          if (newMessages.length > 0 || lastMessageIds.size === 0) {
+            // Update the display
+            messagesList.innerHTML = data.messages.map(msg => `
+              <div class="message">
+                <div class="message-text">${msg.text}</div>
+                <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
+              </div>
+            `).join('');
+
+            // Update tracked IDs
+            lastMessageIds = new Set(data.messages.map(msg => msg._id));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+      }
+    }
+
+    // Poll every 2 seconds
+    setInterval(fetchMessages, 2000);
+
+    // Initial fetch
+    fetchMessages();
+  </script>
+</body>
+</html>

@@ -1,0 +1,45 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Hello API",
+    "description": "A simple API that returns a hello message",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://YOUR_VERCEL_URL.vercel.app"
+    }
+  ],
+  "paths": {
+    "/api/hello": {
+      "get": {
+        "operationId": "getHello",
+        "summary": "Get a hello message",
+        "description": "Returns a friendly hello message with a timestamp",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "description": "The hello message"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "The time the message was generated"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

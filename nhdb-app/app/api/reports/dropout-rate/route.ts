@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/mongodb';
-import { Village, VaccinationVisit } from '@/types';
+import { Village, VaccinationVisit, Child } from '@/types';
 
 // GET /api/reports/dropout-rate
 // Calculate dropout rates over the last 3 months
@@ -15,7 +15,64 @@ export async function GET() {
       .sort({ villageId: 1 })
       .toArray();
 
-    // Get last 6 months
+    const villageMap = new Map(villages.map(v => [v.villageId, v.name]));
+
+    const now = new Date();
+
+    // Calculate date boundaries for all 3 months
+    const monthBoundaries: { monthStr: string; monthEnd: Date }[] = [];
+    for (let i = 2; i >= 0; i--) {
+      const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+      monthEnd.setHours(23, 59, 59, 999);
+      const monthStr = `${monthDate.getFullYear()}-${String(
+        monthDate.getMonth() + 1
+      ).padStart(2, '0')}`;
+      monthBoundaries.push({ monthStr, monthEnd });
+    }
+
+    // Get the latest month end (covers all 3 months)
+    const latestMonthEnd = monthBoundaries[monthBoundaries.length - 1].monthEnd;
+
+    // Batch fetch: all children
+    const allChildren = await db
+      .collection<Child>('children')
+      .find({})
+      .toArray();
+
+    // Create childId -> villageId map
+    const childVillageMap = new Map<string, string>();
+    for (const child of allChildren) {
+      childVillageMap.set(child._id.toString(), child.villageId);
+    }
+
+    // Batch fetch: all vaccinations for A and C up to latest month
+    const allVaccinations = await db
+      .collection<VaccinationVisit>('vaccination_visits')
+      .find({
+        vaccineGiven: { $in: ['A', 'C'] },
+        visitDate: { $lte: latestMonthEnd },
+      })
+      .toArray();
+
+    // Group vaccinations by childId and vaccine type with their dates
+    const vaccinationData = new Map<string, { A?: Date; C?: Date }>();
+    for (const v of allVaccinations) {
+      const childIdStr = v.childId.toString();
+      if (!vaccinationData.has(childIdStr)) {
+        vaccinationData.set(childIdStr, {});
+      }
+      const data = vaccinationData.get(childIdStr)!;
+      const visitDate = new Date(v.visitDate);
+      if (v.vaccineGiven === 'A' && (!data.A || visitDate < data.A)) {
+        data.A = visitDate;
+      }
+      if (v.vaccineGiven === 'C' && (!data.C || visitDate < data.C)) {
+        data.C = visitDate;
+      }
+    }
+
+    // Calculate stats for each month
     const months: {
       month: string;
       villages: {
@@ -27,16 +84,32 @@ export async function GET() {
       }[];
     }[] = [];
 
-    const now = new Date();
+    for (const { monthStr, monthEnd } of monthBoundaries) {
+      // Count per village for this month
+      const villageStats = new Map<string, { started: number; completed: number }>();
+      for (const v of villages) {
+        villageStats.set(v.villageId, { started: 0, completed: 0 });
+      }
 
-    for (let i = 2; i >= 0; i--) {
-      const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
-      const monthStr = `${monthDate.getFullYear()}-${String(
-        monthDate.getMonth() + 1
-      ).padStart(2, '0')}`;
+      // Process each child's vaccination data
+      for (const [childIdStr, data] of vaccinationData) {
+        const villageId = childVillageMap.get(childIdStr);
+        if (!villageId || !villageStats.has(villageId)) continue;
 
-      const villageStats: {
+        const stats = villageStats.get(villageId)!;
+
+        // Check if vaccine A was given by this month end
+        if (data.A && data.A <= monthEnd) {
+          stats.started++;
+        }
+        // Check if vaccine C was given by this month end
+        if (data.C && data.C <= monthEnd) {
+          stats.completed++;
+        }
+      }
+
+      // Build result for this month
+      const villageResults: {
         villageId: string;
         villageName: string;
         childrenStarted: number;
@@ -45,81 +118,24 @@ export async function GET() {
       }[] = [];
 
       for (const village of villages) {
-        // Get children who got Vaccine A in or before this month
-        // (first dose - started vaccination)
-        const childrenWithVaccineA = await db
-          .collection<VaccinationVisit>('vaccination_visits')
-          .aggregate([
-            {
-              $match: {
-                vaccineGiven: 'A',
-                visitDate: { $lte: monthEnd },
-              },
-            },
-            {
-              $lookup: {
-                from: 'children',
-                localField: 'childId',
-                foreignField: '_id',
-                as: 'child',
-              },
-            },
-            { $unwind: '$child' },
-            { $match: { 'child.villageId': village.villageId } },
-            { $group: { _id: '$childId' } },
-          ])
-          .toArray();
-
-        // Get children who got Vaccine C in or before this month
-        // (last dose - completed vaccination)
-        const childrenWithVaccineC = await db
-          .collection<VaccinationVisit>('vaccination_visits')
-          .aggregate([
-            {
-              $match: {
-                vaccineGiven: 'C',
-                visitDate: { $lte: monthEnd },
-              },
-            },
-            {
-              $lookup: {
-                from: 'children',
-                localField: 'childId',
-                foreignField: '_id',
-                as: 'child',
-              },
-            },
-            { $unwind: '$child' },
-            { $match: { 'child.villageId': village.villageId } },
-            { $group: { _id: '$childId' } },
-          ])
-          .toArray();
-
-        const childrenStarted = childrenWithVaccineA.length;
-        const childrenCompleted = childrenWithVaccineC.length;
-
-        // Dropout Rate = (Started - Completed) / Started
+        const stats = villageStats.get(village.villageId)!;
         const dropoutRate =
-          childrenStarted > 0
-            ? Number(
-                ((childrenStarted - childrenCompleted) / childrenStarted).toFixed(
-                  4
-                )
-              )
+          stats.started > 0
+            ? Number(((stats.started - stats.completed) / stats.started).toFixed(4))
             : 0;
 
-        villageStats.push({
+        villageResults.push({
           villageId: village.villageId,
           villageName: village.name,
-          childrenStarted,
-          childrenCompleted,
+          childrenStarted: stats.started,
+          childrenCompleted: stats.completed,
           dropoutRate,
         });
       }
 
       months.push({
         month: monthStr,
-        villages: villageStats,
+        villages: villageResults,
       });
     }
 

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "NHDB - National Health Database API",
-    "description": "API for managing patient records and vaccination tracking for Contoso's vaccination program",
+    "description": "API for managing patient records and vaccination tracking for Contoso's vaccination program.\n\n## Available Villages\n| Village ID | Village Name |\n|------------|-------------|\n| V001 | Rampur |\n| V002 | Shivgaon |\n| V003 | Lakshminagar |\n| V004 | Chandpur |\n| V005 | Govindpur |\n| V006 | Surajkund |\n| V007 | Motinagar |\n\n## Vaccination Schedule\n| Vaccine | Due Window (from DOB) |\n|---------|----------------------|\n| A | 0-7 days (within 1 week) |\n| B | 42-56 days (6-8 weeks) |\n| C | 84-98 days (12-14 weeks) |\n\n## Vaccine Given Options\n- `A` - Vaccine A administered\n- `B` - Vaccine B administered\n- `C` - Vaccine C administered\n- `none_required` - No vaccine required at this visit\n- `not_available` - Vaccine was not available",
     "version": "1.0.0"
   },
   "servers": [
@@ -16,7 +16,7 @@
       "get": {
         "operationId": "getVillages",
         "summary": "Get all villages",
-        "description": "Returns a list of all villages in the program",
+        "description": "Returns a list of all 7 villages in the program",
         "responses": {
           "200": {
             "description": "List of villages",
@@ -49,7 +49,7 @@
             "name": "govtId",
             "in": "query",
             "required": true,
-            "description": "The government ID of the parent",
+            "description": "The government ID of the parent (8-character alphanumeric code, e.g., 'A1B2C3D4')",
             "schema": {
               "type": "string"
             }
@@ -379,15 +379,16 @@
       "get": {
         "operationId": "getVaccineDemand",
         "summary": "Get vaccine demand for a village",
-        "description": "Calculate how many of each vaccine type are needed for a village in a given date range",
+        "description": "Calculate how many of each vaccine type (A, B, C) are needed for a village in a given date range",
         "parameters": [
           {
             "name": "villageId",
             "in": "query",
             "required": true,
-            "description": "The village ID (e.g., V001)",
+            "description": "The village ID. Available values: V001 (Rampur), V002 (Shivgaon), V003 (Lakshminagar), V004 (Chandpur), V005 (Govindpur), V006 (Surajkund), V007 (Motinagar)",
             "schema": {
-              "type": "string"
+              "type": "string",
+              "enum": ["V001", "V002", "V003", "V004", "V005", "V006", "V007"]
             }
           },
           {
@@ -429,7 +430,7 @@
       "get": {
         "operationId": "getDropoutRate",
         "summary": "Get dropout rates",
-        "description": "Get monthly dropout rates by village for the last 6 months",
+        "description": "Get monthly dropout rates by village for the last 3 months. Dropout rate = (Children who started - Children who completed) / Children who started.",
         "responses": {
           "200": {
             "description": "Dropout rates calculated",
@@ -456,7 +457,7 @@
       "get": {
         "operationId": "getWastage",
         "summary": "Get vaccine wastage",
-        "description": "Get vaccine wastage trends for the last 6 months",
+        "description": "Get vaccine wastage trends for the last 3 months. Wastage = vaccines that were due but not administered.",
         "responses": {
           "200": {
             "description": "Wastage calculated",
@@ -485,65 +486,32 @@
       "Village": {
         "type": "object",
         "properties": {
-          "_id": {
-            "type": "string"
-          },
-          "villageId": {
-            "type": "string",
-            "description": "Village ID (V001-V007)"
-          },
-          "name": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
+          "_id": { "type": "string" },
+          "villageId": { "type": "string" },
+          "name": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
         }
       },
       "Parent": {
         "type": "object",
         "properties": {
-          "_id": {
-            "type": "string"
-          },
-          "govtId": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "dateOfBirth": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "villageId": {
-            "type": "string"
-          },
-          "phoneNumber": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
+          "_id": { "type": "string" },
+          "govtId": { "type": "string" },
+          "name": { "type": "string" },
+          "dateOfBirth": { "type": "string", "format": "date-time" },
+          "villageId": { "type": "string" },
+          "phoneNumber": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
         }
       },
       "ParentWithVillage": {
         "allOf": [
-          {
-            "$ref": "#/components/schemas/Parent"
-          },
+          { "$ref": "#/components/schemas/Parent" },
           {
             "type": "object",
             "properties": {
-              "villageName": {
-                "type": "string"
-              }
+              "villageName": { "type": "string" }
             }
           }
         ]
@@ -551,64 +519,35 @@
       "Child": {
         "type": "object",
         "properties": {
-          "_id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "dateOfBirth": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "parentId": {
-            "type": "string"
-          },
-          "villageId": {
-            "type": "string"
-          },
-          "govtId": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
+          "_id": { "type": "string" },
+          "name": { "type": "string" },
+          "dateOfBirth": { "type": "string", "format": "date-time" },
+          "parentId": { "type": "string" },
+          "villageId": { "type": "string" },
+          "govtId": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
         }
       },
       "ChildWithStatus": {
         "allOf": [
-          {
-            "$ref": "#/components/schemas/Child"
-          },
+          { "$ref": "#/components/schemas/Child" },
           {
             "type": "object",
             "properties": {
-              "vaccinationStatus": {
-                "$ref": "#/components/schemas/VaccinationStatus"
-              }
+              "vaccinationStatus": { "$ref": "#/components/schemas/VaccinationStatus" }
             }
           }
         ]
       },
       "ChildWithDetails": {
         "allOf": [
-          {
-            "$ref": "#/components/schemas/Child"
-          },
+          { "$ref": "#/components/schemas/Child" },
           {
             "type": "object",
             "properties": {
-              "parentName": {
-                "type": "string"
-              },
-              "villageName": {
-                "type": "string"
-              }
+              "parentName": { "type": "string" },
+              "villageName": { "type": "string" }
             }
           }
         ]
@@ -618,31 +557,15 @@
         "properties": {
           "vaccinesGiven": {
             "type": "array",
-            "items": {
-              "type": "string",
-              "enum": ["A", "B", "C"]
-            }
+            "items": { "type": "string" }
           },
-          "nextVaccineDue": {
-            "type": "string",
-            "enum": ["A", "B", "C"],
-            "nullable": true
-          },
-          "dueStatus": {
-            "type": "string",
-            "enum": ["overdue", "due", "upcoming", "complete"]
-          },
+          "nextVaccineDue": { "type": "string", "nullable": true },
+          "dueStatus": { "type": "string" },
           "dueWindow": {
             "type": "object",
             "properties": {
-              "start": {
-                "type": "string",
-                "format": "date-time"
-              },
-              "end": {
-                "type": "string",
-                "format": "date-time"
-              }
+              "start": { "type": "string", "format": "date-time" },
+              "end": { "type": "string", "format": "date-time" }
             }
           }
         }
@@ -650,27 +573,12 @@
       "VaccinationVisit": {
         "type": "object",
         "properties": {
-          "_id": {
-            "type": "string"
-          },
-          "childId": {
-            "type": "string"
-          },
-          "visitDate": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "vaccineGiven": {
-            "type": "string",
-            "enum": ["A", "B", "C", "none_required", "not_available"]
-          },
-          "notes": {
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
+          "_id": { "type": "string" },
+          "childId": { "type": "string" },
+          "visitDate": { "type": "string", "format": "date-time" },
+          "vaccineGiven": { "type": "string" },
+          "notes": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
         }
       },
       "CreateParentInput": {
@@ -678,42 +586,37 @@
         "required": ["govtId", "name", "dateOfBirth", "villageId"],
         "properties": {
           "govtId": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "dateOfBirth": {
             "type": "string",
-            "format": "date"
+            "description": "Government ID (8-character alphanumeric code)"
           },
+          "name": { "type": "string" },
+          "dateOfBirth": { "type": "string", "format": "date" },
           "villageId": {
-            "type": "string"
+            "type": "string",
+            "description": "Village ID. Available values: V001 (Rampur), V002 (Shivgaon), V003 (Lakshminagar), V004 (Chandpur), V005 (Govindpur), V006 (Surajkund), V007 (Motinagar)",
+            "enum": ["V001", "V002", "V003", "V004", "V005", "V006", "V007"]
           },
-          "phoneNumber": {
-            "type": "string"
-          }
+          "phoneNumber": { "type": "string" }
         }
       },
       "CreateChildInput": {
         "type": "object",
         "required": ["name", "dateOfBirth", "parentId", "villageId"],
         "properties": {
-          "name": {
-            "type": "string"
-          },
-          "dateOfBirth": {
-            "type": "string",
-            "format": "date"
-          },
+          "name": { "type": "string" },
+          "dateOfBirth": { "type": "string", "format": "date" },
           "parentId": {
-            "type": "string"
+            "type": "string",
+            "description": "MongoDB ID of the parent"
           },
           "villageId": {
-            "type": "string"
+            "type": "string",
+            "description": "Village ID. Available values: V001 (Rampur), V002 (Shivgaon), V003 (Lakshminagar), V004 (Chandpur), V005 (Govindpur), V006 (Surajkund), V007 (Motinagar)",
+            "enum": ["V001", "V002", "V003", "V004", "V005", "V006", "V007"]
           },
           "govtId": {
-            "type": "string"
+            "type": "string",
+            "description": "Birth certificate number (optional)"
           }
         }
       },
@@ -722,87 +625,54 @@
         "required": ["childId", "visitDate", "vaccineGiven"],
         "properties": {
           "childId": {
-            "type": "string"
-          },
-          "visitDate": {
             "type": "string",
-            "format": "date"
+            "description": "MongoDB ID of the child"
           },
+          "visitDate": { "type": "string", "format": "date" },
           "vaccineGiven": {
             "type": "string",
-            "enum": ["A", "B", "C", "none_required", "not_available"]
+            "enum": ["A", "B", "C", "none_required", "not_available"],
+            "description": "Vaccine administered. Values: 'A' (Vaccine A), 'B' (Vaccine B), 'C' (Vaccine C), 'none_required' (no vaccine needed), 'not_available' (vaccine out of stock)"
           },
           "notes": {
-            "type": "string"
+            "type": "string",
+            "description": "Optional notes about this visit"
           }
         }
       },
       "VaccineDemandReport": {
         "type": "object",
         "properties": {
-          "villageId": {
-            "type": "string"
-          },
-          "villageName": {
-            "type": "string"
-          },
-          "startDate": {
-            "type": "string",
-            "format": "date"
-          },
-          "endDate": {
-            "type": "string",
-            "format": "date"
-          },
+          "villageId": { "type": "string" },
+          "villageName": { "type": "string" },
+          "startDate": { "type": "string", "format": "date" },
+          "endDate": { "type": "string", "format": "date" },
           "demand": {
             "type": "object",
             "properties": {
-              "A": {
-                "type": "integer"
-              },
-              "B": {
-                "type": "integer"
-              },
-              "C": {
-                "type": "integer"
-              }
+              "A": { "type": "integer" },
+              "B": { "type": "integer" },
+              "C": { "type": "integer" }
             }
           },
-          "totalChildren": {
-            "type": "integer"
-          },
-          "childrenNeedingVaccines": {
-            "type": "integer"
-          }
+          "totalChildren": { "type": "integer" },
+          "childrenNeedingVaccines": { "type": "integer" }
         }
       },
       "MonthlyDropoutReport": {
         "type": "object",
         "properties": {
-          "month": {
-            "type": "string",
-            "description": "Month in YYYY-MM format"
-          },
+          "month": { "type": "string" },
           "villages": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "villageId": {
-                  "type": "string"
-                },
-                "villageName": {
-                  "type": "string"
-                },
-                "childrenStarted": {
-                  "type": "integer"
-                },
-                "childrenCompleted": {
-                  "type": "integer"
-                },
-                "dropoutRate": {
-                  "type": "number"
-                }
+                "villageId": { "type": "string" },
+                "villageName": { "type": "string" },
+                "childrenStarted": { "type": "integer" },
+                "childrenCompleted": { "type": "integer" },
+                "dropoutRate": { "type": "number" }
               }
             }
           }
@@ -811,22 +681,13 @@
       "MonthlyWastageReport": {
         "type": "object",
         "properties": {
-          "month": {
-            "type": "string",
-            "description": "Month in YYYY-MM format"
-          },
+          "month": { "type": "string" },
           "wastage": {
             "type": "object",
             "properties": {
-              "A": {
-                "$ref": "#/components/schemas/WastageDetails"
-              },
-              "B": {
-                "$ref": "#/components/schemas/WastageDetails"
-              },
-              "C": {
-                "$ref": "#/components/schemas/WastageDetails"
-              }
+              "A": { "$ref": "#/components/schemas/WastageDetails" },
+              "B": { "$ref": "#/components/schemas/WastageDetails" },
+              "C": { "$ref": "#/components/schemas/WastageDetails" }
             }
           }
         }
@@ -834,26 +695,16 @@
       "WastageDetails": {
         "type": "object",
         "properties": {
-          "expected": {
-            "type": "integer"
-          },
-          "actual": {
-            "type": "integer"
-          },
-          "wasted": {
-            "type": "integer"
-          },
-          "rate": {
-            "type": "number"
-          }
+          "expected": { "type": "integer" },
+          "actual": { "type": "integer" },
+          "wasted": { "type": "integer" },
+          "rate": { "type": "number" }
         }
       },
       "Error": {
         "type": "object",
         "properties": {
-          "error": {
-            "type": "string"
-          }
+          "error": { "type": "string" }
         }
       }
     }

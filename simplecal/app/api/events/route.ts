@@ -70,13 +70,11 @@ export async function POST(request: NextRequest) {
 
     const result = await collection.insertOne(newEvent as CalendarEvent);
 
-    const insertedEvent = await collection.findOne({ _id: result.insertedId });
-    if (!insertedEvent) {
-      return NextResponse.json(
-        { error: 'Failed to retrieve created event' },
-        { status: 500 }
-      );
-    }
+    // Return the created event directly without an extra findOne query
+    const insertedEvent = {
+      _id: result.insertedId,
+      ...newEvent,
+    } as CalendarEvent;
 
     return NextResponse.json(
       { event: toEventResponse(insertedEvent) },

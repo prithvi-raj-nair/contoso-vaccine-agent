@@ -25,8 +25,8 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchEvents = useCallback(async () => {
-    setIsLoading(true);
+  const fetchEvents = useCallback(async (silent = false) => {
+    if (!silent) setIsLoading(true);
     try {
       const weekEnd = new Date(currentWeekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
@@ -45,12 +45,21 @@ export default function Home() {
     } catch (error) {
       console.error('Error fetching events:', error);
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }, [currentWeekStart]);
 
   useEffect(() => {
     fetchEvents();
+  }, [fetchEvents]);
+
+  // Poll for updates every 10 seconds to catch agent-added events
+  useEffect(() => {
+    const pollInterval = setInterval(() => {
+      fetchEvents(true); // Silent refresh - no loading spinner
+    }, 10000);
+
+    return () => clearInterval(pollInterval);
   }, [fetchEvents]);
 
   const handlePrevWeek = () => {

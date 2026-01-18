@@ -2,6 +2,10 @@
 
 Week-view calendar for scheduling vaccination outreach visits.
 
+## Development
+
+- Dev server runs on port **3001**: `npm run dev` (configured in package.json)
+
 ## API Endpoints
 
 | Method | Endpoint | Description |
@@ -30,6 +34,7 @@ Week-view calendar for scheduling vaccination outreach visits.
 
 - Database: `simplecal`
 - Collection: `events`
+- Index: `startTime_1` - ascending index for date range queries
 
 ## Key Files
 

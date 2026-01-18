@@ -30,14 +30,35 @@ function getRandomWeekdays(startDate: Date, endDate: Date, count: number): Date[
   const current = new Date(startDate);
 
   while (current <= endDate) {
-    const day = current.getDay();
+    const day = current.getUTCDay();
     if (day >= 1 && day <= 5) { // Monday to Friday
       weekdays.push(new Date(current));
     }
-    current.setDate(current.getDate() + 1);
+    current.setUTCDate(current.getUTCDate() + 1);
   }
 
   return getRandomItems(weekdays, Math.min(count, weekdays.length));
+}
+
+// Helper to set time in IST (UTC+5:30) - converts IST hours to UTC
+// IST is 5 hours 30 minutes ahead of UTC
+function setTimeIST(date: Date, hours: number, minutes: number = 0): Date {
+  const result = new Date(date);
+  // Convert IST to UTC: subtract 5 hours 30 minutes
+  let utcHours = hours - 5;
+  let utcMinutes = minutes - 30;
+
+  if (utcMinutes < 0) {
+    utcMinutes += 60;
+    utcHours -= 1;
+  }
+  if (utcHours < 0) {
+    utcHours += 24;
+    result.setUTCDate(result.getUTCDate() - 1);
+  }
+
+  result.setUTCHours(utcHours, utcMinutes, 0, 0);
+  return result;
 }
 
 // POST /api/demo - Execute demo actions
@@ -62,19 +83,18 @@ export async function POST(request: NextRequest) {
 
         // Get date range for last 2 weeks
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        today.setUTCHours(0, 0, 0, 0);
         const twoWeeksAgo = new Date(today);
-        twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+        twoWeeksAgo.setUTCDate(twoWeeksAgo.getUTCDate() - 14);
 
         // Get random weekdays for each village
         const weekdays = getRandomWeekdays(twoWeeksAgo, new Date(today.getTime() - 86400000), 5);
 
         const events = selectedVillages.map((village, index) => {
           const eventDate = weekdays[index];
-          const startTime = new Date(eventDate);
-          startTime.setHours(9, 0, 0, 0);
-          const endTime = new Date(eventDate);
-          endTime.setHours(16, 0, 0, 0);
+          // Outreach events: 9:00 AM to 5:00 PM IST
+          const startTime = setTimeIST(eventDate, 9, 0);
+          const endTime = setTimeIST(eventDate, 17, 0);
 
           return {
             name: `Vaccine Outreach - ${village}`,
@@ -96,22 +116,22 @@ export async function POST(request: NextRequest) {
 
       case 'createNextTwoWeeks': {
         const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        today.setUTCHours(0, 0, 0, 0);
 
         // Get the start of current week (Sunday)
         const currentWeekStart = new Date(today);
-        currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay());
+        currentWeekStart.setUTCDate(currentWeekStart.getUTCDate() - currentWeekStart.getUTCDay());
 
         // Get the start of next week
         const nextWeekStart = new Date(currentWeekStart);
-        nextWeekStart.setDate(nextWeekStart.getDate() + 7);
+        nextWeekStart.setUTCDate(nextWeekStart.getUTCDate() + 7);
 
         // Helper to get ALL weekdays (Mon-Fri) in a week starting from a Sunday
         const getWeekdaysInWeek = (weekStart: Date): Date[] => {
           const weekdays: Date[] = [];
           for (let i = 1; i <= 5; i++) { // Monday (1) to Friday (5)
             const day = new Date(weekStart);
-            day.setDate(day.getDate() + i);
+            day.setUTCDate(day.getUTCDate() + i);
             weekdays.push(day);
           }
           return weekdays;
@@ -136,12 +156,10 @@ export async function POST(request: NextRequest) {
 
         const events: Partial<CalendarEvent>[] = [];
 
-        // Add holiday events (all day)
+        // Add holiday events (all day) - use IST midnight to end of day
         holidayDates.forEach(date => {
-          const startTime = new Date(date);
-          startTime.setHours(0, 0, 0, 0);
-          const endTime = new Date(date);
-          endTime.setHours(23, 59, 59, 999);
+          const startTime = setTimeIST(date, 0, 0);
+          const endTime = setTimeIST(date, 23, 59);
 
           events.push({
             name: 'Holiday',
@@ -154,7 +172,7 @@ export async function POST(request: NextRequest) {
           });
         });
 
-        // Other events with specific times
+        // Other events with specific times (in IST)
         const otherEvents = [
           { name: 'Health minister visit', startHour: 9, endHour: 17, description: 'Official visit from the Health Minister' },
           { name: 'Wellness seminar', startHour: 10, endHour: 14, description: 'Staff wellness and health awareness seminar' },
@@ -164,10 +182,9 @@ export async function POST(request: NextRequest) {
         otherEventDates.forEach((date, index) => {
           if (index < otherEvents.length) {
             const eventInfo = otherEvents[index];
-            const startTime = new Date(date);
-            startTime.setHours(eventInfo.startHour, 0, 0, 0);
-            const endTime = new Date(date);
-            endTime.setHours(eventInfo.endHour, 0, 0, 0);
+            // Use IST times
+            const startTime = setTimeIST(date, eventInfo.startHour, 0);
+            const endTime = setTimeIST(date, eventInfo.endHour, 0);
 
             events.push({
               name: eventInfo.name,

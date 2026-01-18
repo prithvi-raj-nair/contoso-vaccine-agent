@@ -48,16 +48,29 @@ export async function GET(request: NextRequest) {
       .find({ villageId })
       .toArray();
 
+    // Batch fetch all vaccinations for all children in one query
+    const childIds = children.map(c => c._id);
+    const allVaccinations = await db
+      .collection<VaccinationVisit>('vaccination_visits')
+      .find({ childId: { $in: childIds } })
+      .toArray();
+
+    // Group vaccinations by childId for quick lookup
+    const vaccinationsByChildId = new Map<string, VaccinationVisit[]>();
+    for (const v of allVaccinations) {
+      const key = v.childId.toString();
+      if (!vaccinationsByChildId.has(key)) {
+        vaccinationsByChildId.set(key, []);
+      }
+      vaccinationsByChildId.get(key)!.push(v);
+    }
+
     const demand = { A: 0, B: 0, C: 0 };
     let childrenNeedingVaccines = 0;
 
     // For each child, check if they need a vaccine in the date range
     for (const child of children) {
-      // Get vaccination history for this child
-      const vaccinations = await db
-        .collection<VaccinationVisit>('vaccination_visits')
-        .find({ childId: child._id })
-        .toArray();
+      const vaccinations = vaccinationsByChildId.get(child._id.toString()) || [];
 
       const vaccineDue = getVaccineDueInRange(
         child.dateOfBirth,

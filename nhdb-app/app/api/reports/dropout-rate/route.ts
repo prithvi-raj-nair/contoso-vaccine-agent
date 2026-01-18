@@ -3,7 +3,7 @@ import { getDatabase } from '@/lib/mongodb';
 import { Village, VaccinationVisit } from '@/types';
 
 // GET /api/reports/dropout-rate
-// Calculate dropout rates over the last 6 months
+// Calculate dropout rates over the last 3 months
 export async function GET() {
   try {
     const db = await getDatabase();
@@ -29,7 +29,7 @@ export async function GET() {
 
     const now = new Date();
 
-    for (let i = 5; i >= 0; i--) {
+    for (let i = 2; i >= 0; i--) {
       const monthDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
       const monthStr = `${monthDate.getFullYear()}-${String(

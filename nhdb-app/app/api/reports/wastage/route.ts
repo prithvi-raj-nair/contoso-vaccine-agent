@@ -1,14 +1,22 @@
 import { NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/mongodb';
-import { VaccinationVisit } from '@/types';
+import { Child, VaccinationVisit } from '@/types';
+import { ObjectId } from 'mongodb';
+
+// Vaccination schedule (days from DOB)
+const VACCINE_SCHEDULE = {
+  A: { start: 0, end: 7 },
+  B: { start: 42, end: 56 },
+  C: { start: 84, end: 98 },
+};
 
 // GET /api/reports/wastage
-// Calculate vaccine wastage over last 6 months
+// Calculate vaccine wastage over last 3 months
+// Wastage = vaccines that were due but not administered
 export async function GET() {
   try {
     const db = await getDatabase();
 
-    // Get last 6 months
     const months: {
       month: string;
       wastage: {
@@ -20,91 +28,114 @@ export async function GET() {
 
     const now = new Date();
 
-    for (let i = 5; i >= 0; i--) {
+    // Last 3 months only
+    for (let i = 2; i >= 0; i--) {
       const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
+      monthEnd.setHours(23, 59, 59, 999);
+
       const monthStr = `${monthStart.getFullYear()}-${String(
         monthStart.getMonth() + 1
       ).padStart(2, '0')}`;
 
-      // Count actual vaccinations given in this month
-      const actualVaccinations = await db
-        .collection<VaccinationVisit>('vaccination_visits')
-        .aggregate([
-          {
-            $match: {
-              visitDate: { $gte: monthStart, $lte: monthEnd },
-              vaccineGiven: { $in: ['A', 'B', 'C'] },
-            },
-          },
-          {
-            $group: {
-              _id: '$vaccineGiven',
-              count: { $sum: 1 },
-            },
-          },
-        ])
+      // For each vaccine, calculate:
+      // Expected: children whose vaccine window falls within this month
+      // Actual: vaccines actually given this month
+
+      const wastageData: {
+        A: { expected: number; actual: number; wasted: number; rate: number };
+        B: { expected: number; actual: number; wasted: number; rate: number };
+        C: { expected: number; actual: number; wasted: number; rate: number };
+      } = {
+        A: { expected: 0, actual: 0, wasted: 0, rate: 0 },
+        B: { expected: 0, actual: 0, wasted: 0, rate: 0 },
+        C: { expected: 0, actual: 0, wasted: 0, rate: 0 },
+      };
+
+      // Get all children
+      const children = await db
+        .collection<Child>('children')
+        .find({})
         .toArray();
 
-      // Count visits where vaccine was not available (potential wastage scenario)
-      const notAvailableVisits = await db
+      // Get all vaccination visits up to end of this month
+      const allVaccinations = await db
         .collection<VaccinationVisit>('vaccination_visits')
-        .aggregate([
-          {
-            $match: {
-              visitDate: { $gte: monthStart, $lte: monthEnd },
-              vaccineGiven: 'not_available',
-            },
-          },
-          {
-            $count: 'count',
-          },
-        ])
+        .find({
+          visitDate: { $lte: monthEnd },
+          vaccineGiven: { $in: ['A', 'B', 'C'] },
+        })
         .toArray();
 
-      const notAvailableCount = notAvailableVisits[0]?.count || 0;
+      // Create a map of childId -> vaccines received before this month
+      const vaccinesBeforeMonth: Map<string, Set<string>> = new Map();
+      const vaccinesInMonth: Map<string, Set<string>> = new Map();
 
-      // Convert to map for easier access
-      const actualMap: Record<string, number> = {};
-      actualVaccinations.forEach((v) => {
-        actualMap[v._id as string] = v.count;
+      allVaccinations.forEach((v) => {
+        const childIdStr = v.childId.toString();
+        const visitDate = new Date(v.visitDate);
+
+        if (visitDate < monthStart) {
+          if (!vaccinesBeforeMonth.has(childIdStr)) {
+            vaccinesBeforeMonth.set(childIdStr, new Set());
+          }
+          vaccinesBeforeMonth.get(childIdStr)!.add(v.vaccineGiven);
+        } else if (visitDate <= monthEnd) {
+          if (!vaccinesInMonth.has(childIdStr)) {
+            vaccinesInMonth.set(childIdStr, new Set());
+          }
+          vaccinesInMonth.get(childIdStr)!.add(v.vaccineGiven);
+        }
       });
 
-      const actualA = actualMap['A'] || 0;
-      const actualB = actualMap['B'] || 0;
-      const actualC = actualMap['C'] || 0;
+      // For each child, check if each vaccine was due this month
+      for (const child of children) {
+        const dob = new Date(child.dateOfBirth);
+        const childIdStr = (child._id as ObjectId).toString();
+        const vaccinesBefore = vaccinesBeforeMonth.get(childIdStr) || new Set();
+        const vaccinesThis = vaccinesInMonth.get(childIdStr) || new Set();
 
-      // Expected = actual + estimated wasted (based on not_available visits)
-      // Distribute not_available counts proportionally among vaccines
-      const totalActual = actualA + actualB + actualC;
-      const wastedA =
-        totalActual > 0
-          ? Math.round((notAvailableCount * actualA) / totalActual)
-          : Math.round(notAvailableCount / 3);
-      const wastedB =
-        totalActual > 0
-          ? Math.round((notAvailableCount * actualB) / totalActual)
-          : Math.round(notAvailableCount / 3);
-      const wastedC =
-        totalActual > 0
-          ? notAvailableCount - wastedA - wastedB
-          : notAvailableCount - wastedA - wastedB;
+        for (const [vaccine, schedule] of Object.entries(VACCINE_SCHEDULE)) {
+          // Calculate the due window for this vaccine
+          const dueStart = new Date(dob);
+          dueStart.setDate(dueStart.getDate() + schedule.start);
+          const dueEnd = new Date(dob);
+          dueEnd.setDate(dueEnd.getDate() + schedule.end);
 
-      const expectedA = actualA + wastedA;
-      const expectedB = actualB + wastedB;
-      const expectedC = actualC + wastedC;
+          // Check if the due window overlaps with this month
+          const windowOverlapsMonth =
+            dueStart <= monthEnd && dueEnd >= monthStart;
 
-      const rateA = expectedA > 0 ? Number((wastedA / expectedA).toFixed(4)) : 0;
-      const rateB = expectedB > 0 ? Number((wastedB / expectedB).toFixed(4)) : 0;
-      const rateC = expectedC > 0 ? Number((wastedC / expectedC).toFixed(4)) : 0;
+          if (windowOverlapsMonth) {
+            // Check if child already had this vaccine before this month
+            const alreadyHadVaccine = vaccinesBefore.has(vaccine);
+
+            if (!alreadyHadVaccine) {
+              // This vaccine was expected/due this month
+              wastageData[vaccine as 'A' | 'B' | 'C'].expected++;
+
+              // Check if they got it this month
+              if (vaccinesThis.has(vaccine)) {
+                wastageData[vaccine as 'A' | 'B' | 'C'].actual++;
+              }
+            }
+          }
+        }
+      }
+
+      // Calculate wasted and rate
+      for (const vaccine of ['A', 'B', 'C'] as const) {
+        const data = wastageData[vaccine];
+        data.wasted = data.expected - data.actual;
+        data.rate =
+          data.expected > 0
+            ? Number((data.wasted / data.expected).toFixed(4))
+            : 0;
+      }
 
       months.push({
         month: monthStr,
-        wastage: {
-          A: { expected: expectedA, actual: actualA, wasted: wastedA, rate: rateA },
-          B: { expected: expectedB, actual: actualB, wasted: wastedB, rate: rateB },
-          C: { expected: expectedC, actual: actualC, wasted: wastedC, rate: rateC },
-        },
+        wastage: wastageData,
       });
     }
 

@@ -47,6 +47,10 @@ function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+function randomFloat(min: number, max: number): number {
+  return Math.random() * (max - min) + min;
+}
+
 function generateGovtId(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let id = '';
@@ -56,8 +60,11 @@ function generateGovtId(): string {
   return id;
 }
 
-function randomDate(start: Date, end: Date): Date {
-  return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime()));
+function randomDateInMonth(year: number, month: number, maxDay?: number): Date {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const actualMaxDay = maxDay ? Math.min(maxDay, daysInMonth) : daysInMonth;
+  const day = randomInt(1, actualMaxDay);
+  return new Date(year, month, day, randomInt(0, 23), randomInt(0, 59));
 }
 
 function addDays(date: Date, days: number): Date {
@@ -72,6 +79,18 @@ function generatePhoneNumber(): string | undefined {
   return `9${randomInt(100000000, 999999999)}`;
 }
 
+function daysBetween(date1: Date, date2: Date): number {
+  const diffTime = date2.getTime() - date1.getTime();
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+}
+
+// Vaccination schedule (days from DOB)
+const VACCINE_SCHEDULE = {
+  A: { start: 0, end: 7 },
+  B: { start: 42, end: 56 },
+  C: { start: 84, end: 98 },
+};
+
 async function seed() {
   console.log('Connecting to MongoDB...');
   const client = new MongoClient(MONGODB_URI!);
@@ -80,32 +99,80 @@ async function seed() {
   const db = client.db('nhdb');
   console.log('Connected to nhdb database');
 
-  // Clear existing data
-  console.log('Clearing existing data...');
-  await db.collection('villages').deleteMany({});
+  // Clear existing data EXCEPT villages
+  console.log('Clearing existing data (keeping villages)...');
   await db.collection('parents').deleteMany({});
   await db.collection('children').deleteMany({});
   await db.collection('vaccination_visits').deleteMany({});
 
-  // Seed villages
-  console.log('Seeding villages...');
-  const villagesDocs = VILLAGES.map((v) => ({
-    ...v,
-    createdAt: new Date(),
-  }));
-  await db.collection('villages').insertMany(villagesDocs);
-  console.log(`  Inserted ${villagesDocs.length} villages`);
+  // Check if villages exist, if not seed them
+  const existingVillages = await db.collection('villages').countDocuments();
+  if (existingVillages === 0) {
+    console.log('Seeding villages...');
+    const villagesDocs = VILLAGES.map((v) => ({
+      ...v,
+      createdAt: new Date(),
+    }));
+    await db.collection('villages').insertMany(villagesDocs);
+    console.log(`  Inserted ${villagesDocs.length} villages`);
+  } else {
+    console.log(`  Villages already exist (${existingVillages} villages)`);
+  }
 
+  // Current date (mid-January 2026)
   const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const currentDay = now.getDate();
+
+  console.log(`\nCurrent date: ${now.toISOString().split('T')[0]}`);
+
+  // Generate months for data: last 6 months + current month
+  const months: { year: number; month: number; births: number }[] = [];
+
+  // Last 6 months (100 births each)
+  for (let i = 6; i >= 1; i--) {
+    let targetMonth = currentMonth - i;
+    let targetYear = currentYear;
+    if (targetMonth < 0) {
+      targetMonth += 12;
+      targetYear -= 1;
+    }
+    months.push({ year: targetYear, month: targetMonth, births: 100 });
+  }
+
+  // Current month (50 births, since mid-month)
+  months.push({ year: currentYear, month: currentMonth, births: 50 });
+
+  console.log('\nBirth distribution plan:');
+  months.forEach((m) => {
+    const monthName = new Date(m.year, m.month, 1).toLocaleDateString('en-US', {
+      month: 'long',
+      year: 'numeric',
+    });
+    console.log(`  ${monthName}: ${m.births} births per village`);
+  });
+
   const usedGovtIds = new Set<string>();
+  let totalParents = 0;
+  let totalChildren = 0;
+  let totalVaccinations = 0;
 
   // For each village, create parents and children
   for (const village of VILLAGES) {
-    console.log(`\nSeeding data for ${village.name}...`);
+    console.log(`\n=== Seeding data for ${village.name} ===`);
 
-    // Generate parents (100-150 per village)
-    const numParents = randomInt(100, 150);
-    const parents: {
+    // Generate village-specific vaccination probabilities
+    const vaccineAProbability = randomFloat(0.6, 0.7); // 60-70%
+    const vaccineBProbability = randomFloat(0.7, 0.8); // 70-80% of A recipients
+    const vaccineCProbability = randomFloat(0.8, 0.9); // 80-90% of B recipients
+
+    console.log(`  Vaccination probabilities for ${village.name}:`);
+    console.log(`    Vaccine A: ${(vaccineAProbability * 100).toFixed(1)}%`);
+    console.log(`    Vaccine B (of A): ${(vaccineBProbability * 100).toFixed(1)}%`);
+    console.log(`    Vaccine C (of B): ${(vaccineCProbability * 100).toFixed(1)}%`);
+
+    const villageParents: {
       _id: ObjectId;
       govtId: string;
       name: string;
@@ -116,37 +183,7 @@ async function seed() {
       updatedAt: Date;
     }[] = [];
 
-    for (let i = 0; i < numParents; i++) {
-      let govtId: string;
-      do {
-        govtId = generateGovtId();
-      } while (usedGovtIds.has(govtId));
-      usedGovtIds.add(govtId);
-
-      const name = `${randomElement(FIRST_NAMES)} ${randomElement(LAST_NAMES)}`;
-      const dateOfBirth = randomDate(
-        new Date(now.getFullYear() - 45, 0, 1),
-        new Date(now.getFullYear() - 20, 0, 1)
-      );
-
-      parents.push({
-        _id: new ObjectId(),
-        govtId,
-        name,
-        dateOfBirth,
-        villageId: village.villageId,
-        phoneNumber: generatePhoneNumber(),
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    await db.collection('parents').insertMany(parents);
-    console.log(`  Inserted ${parents.length} parents`);
-
-    // Generate children (~100 per village)
-    const numChildren = randomInt(90, 110);
-    const children: {
+    const villageChildren: {
       _id: ObjectId;
       name: string;
       dateOfBirth: Date;
@@ -157,35 +194,7 @@ async function seed() {
       updatedAt: Date;
     }[] = [];
 
-    // Distribute children ages: 0-16 weeks
-    for (let i = 0; i < numChildren; i++) {
-      const parent = randomElement(parents);
-      const name = `${randomElement(FIRST_NAMES)} ${parent.name.split(' ')[1]}`;
-
-      // Age in days: 0-112 days (16 weeks)
-      const ageInDays = randomInt(0, 112);
-      const dateOfBirth = addDays(now, -ageInDays);
-
-      // 30% chance of having a birth certificate number
-      const govtId = Math.random() < 0.3 ? `BC${generateGovtId()}` : undefined;
-
-      children.push({
-        _id: new ObjectId(),
-        name,
-        dateOfBirth,
-        parentId: parent._id,
-        villageId: village.villageId,
-        govtId,
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    await db.collection('children').insertMany(children);
-    console.log(`  Inserted ${children.length} children`);
-
-    // Generate vaccination records based on child age
-    const vaccinations: {
+    const villageVaccinations: {
       childId: ObjectId;
       visitDate: Date;
       vaccineGiven: string;
@@ -193,134 +202,171 @@ async function seed() {
       createdAt: Date;
     }[] = [];
 
-    for (const child of children) {
-      const ageInDays = Math.floor(
-        (now.getTime() - child.dateOfBirth.getTime()) / (1000 * 60 * 60 * 24)
-      );
+    // Process each month
+    for (const monthData of months) {
+      const { year, month, births } = monthData;
+      const maxDay = year === currentYear && month === currentMonth ? currentDay : undefined;
 
-      // Vaccine A: Due 0-7 days
-      // Determine if child should have Vaccine A
-      if (ageInDays >= 0) {
-        // Various scenarios for Vaccine A
-        const scenario = Math.random();
+      for (let i = 0; i < births; i++) {
+        // Create parent (one parent per child)
+        let govtId: string;
+        do {
+          govtId = generateGovtId();
+        } while (usedGovtIds.has(govtId));
+        usedGovtIds.add(govtId);
 
-        if (ageInDays <= 7) {
-          // Child is in Vaccine A window
-          if (scenario < 0.6) {
-            // 60% got vaccine A
-            const visitDate = addDays(child.dateOfBirth, randomInt(0, Math.min(7, ageInDays)));
-            vaccinations.push({
-              childId: child._id,
-              visitDate,
+        const lastName = randomElement(LAST_NAMES);
+        const parentName = `${randomElement(FIRST_NAMES)} ${lastName}`;
+        const parentDob = new Date(
+          randomInt(now.getFullYear() - 45, now.getFullYear() - 20),
+          randomInt(0, 11),
+          randomInt(1, 28)
+        );
+
+        const parentId = new ObjectId();
+        villageParents.push({
+          _id: parentId,
+          govtId,
+          name: parentName,
+          dateOfBirth: parentDob,
+          villageId: village.villageId,
+          phoneNumber: generatePhoneNumber(),
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        // Create child with DOB in this month
+        const childDob = randomDateInMonth(year, month, maxDay);
+        const childName = `${randomElement(FIRST_NAMES)} ${lastName}`;
+        const childGovtId = Math.random() < 0.3 ? `BC${generateGovtId()}` : undefined;
+
+        const childId = new ObjectId();
+        villageChildren.push({
+          _id: childId,
+          name: childName,
+          dateOfBirth: childDob,
+          parentId: parentId,
+          villageId: village.villageId,
+          govtId: childGovtId,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        // Calculate child's age in days
+        const ageInDays = daysBetween(childDob, now);
+
+        // Determine vaccination status based on probabilities and due dates
+        let hasVaccineA = false;
+        let hasVaccineB = false;
+
+        // Vaccine A: Due 0-7 days from birth
+        if (ageInDays >= VACCINE_SCHEDULE.A.end) {
+          // Vaccine A window has passed, should have been given
+          if (Math.random() < vaccineAProbability) {
+            hasVaccineA = true;
+            // Give vaccine within the window
+            const visitDay = randomInt(VACCINE_SCHEDULE.A.start, VACCINE_SCHEDULE.A.end);
+            const visitDate = addDays(childDob, visitDay);
+            villageVaccinations.push({
+              childId: childId,
+              visitDate: visitDate,
               vaccineGiven: 'A',
               createdAt: visitDate,
             });
-          } else if (scenario < 0.7) {
-            // 10% recorded as not available
-            const visitDate = addDays(child.dateOfBirth, randomInt(0, Math.min(7, ageInDays)));
-            vaccinations.push({
-              childId: child._id,
-              visitDate,
-              vaccineGiven: 'not_available',
-              notes: 'Vaccine stock unavailable',
-              createdAt: visitDate,
-            });
           }
-          // 30% no record yet
-        } else if (ageInDays > 7) {
-          // Child is past Vaccine A window
-          if (scenario < 0.85) {
-            // 85% got vaccine A (some late)
-            const visitDate = addDays(child.dateOfBirth, randomInt(0, 10));
-            vaccinations.push({
-              childId: child._id,
-              visitDate,
+        } else if (ageInDays >= VACCINE_SCHEDULE.A.start) {
+          // Child is currently in Vaccine A window
+          // Some may have gotten it, some may not yet
+          if (Math.random() < vaccineAProbability * 0.7) {
+            hasVaccineA = true;
+            const visitDay = randomInt(VACCINE_SCHEDULE.A.start, Math.min(ageInDays, VACCINE_SCHEDULE.A.end));
+            const visitDate = addDays(childDob, visitDay);
+            villageVaccinations.push({
+              childId: childId,
+              visitDate: visitDate,
               vaccineGiven: 'A',
               createdAt: visitDate,
             });
           }
-          // 15% missed Vaccine A
         }
-      }
+        // Children younger than 0 days don't exist, so no else needed
 
-      // Vaccine B: Due 42-56 days
-      if (ageInDays >= 42) {
-        const hasVaccineA = vaccinations.some(
-          (v) => v.childId.equals(child._id) && v.vaccineGiven === 'A'
-        );
-
-        if (hasVaccineA) {
-          const scenario = Math.random();
-
-          if (ageInDays <= 56) {
-            // Child is in Vaccine B window
-            if (scenario < 0.5) {
-              const visitDate = addDays(child.dateOfBirth, randomInt(42, Math.min(56, ageInDays)));
-              vaccinations.push({
-                childId: child._id,
-                visitDate,
-                vaccineGiven: 'B',
-                createdAt: visitDate,
-              });
-            }
-          } else if (ageInDays > 56) {
-            // Child is past Vaccine B window
-            if (scenario < 0.75) {
-              const visitDate = addDays(child.dateOfBirth, randomInt(42, 60));
-              vaccinations.push({
-                childId: child._id,
-                visitDate,
-                vaccineGiven: 'B',
-                createdAt: visitDate,
-              });
-            }
+        // Vaccine B: Due 42-56 days (6-8 weeks) from birth
+        if (hasVaccineA && ageInDays >= VACCINE_SCHEDULE.B.end) {
+          // Vaccine B window has passed
+          if (Math.random() < vaccineBProbability) {
+            hasVaccineB = true;
+            const visitDay = randomInt(VACCINE_SCHEDULE.B.start, VACCINE_SCHEDULE.B.end);
+            const visitDate = addDays(childDob, visitDay);
+            villageVaccinations.push({
+              childId: childId,
+              visitDate: visitDate,
+              vaccineGiven: 'B',
+              createdAt: visitDate,
+            });
+          }
+        } else if (hasVaccineA && ageInDays >= VACCINE_SCHEDULE.B.start) {
+          // Child is currently in Vaccine B window
+          if (Math.random() < vaccineBProbability * 0.6) {
+            hasVaccineB = true;
+            const visitDay = randomInt(VACCINE_SCHEDULE.B.start, Math.min(ageInDays, VACCINE_SCHEDULE.B.end));
+            const visitDate = addDays(childDob, visitDay);
+            villageVaccinations.push({
+              childId: childId,
+              visitDate: visitDate,
+              vaccineGiven: 'B',
+              createdAt: visitDate,
+            });
           }
         }
-      }
 
-      // Vaccine C: Due 84-98 days
-      if (ageInDays >= 84) {
-        const hasVaccineA = vaccinations.some(
-          (v) => v.childId.equals(child._id) && v.vaccineGiven === 'A'
-        );
-        const hasVaccineB = vaccinations.some(
-          (v) => v.childId.equals(child._id) && v.vaccineGiven === 'B'
-        );
-
-        if (hasVaccineA && hasVaccineB) {
-          const scenario = Math.random();
-
-          if (ageInDays <= 98) {
-            // Child is in Vaccine C window
-            if (scenario < 0.4) {
-              const visitDate = addDays(child.dateOfBirth, randomInt(84, Math.min(98, ageInDays)));
-              vaccinations.push({
-                childId: child._id,
-                visitDate,
-                vaccineGiven: 'C',
-                createdAt: visitDate,
-              });
-            }
-          } else if (ageInDays > 98) {
-            // Child is past Vaccine C window
-            if (scenario < 0.65) {
-              const visitDate = addDays(child.dateOfBirth, randomInt(84, 105));
-              vaccinations.push({
-                childId: child._id,
-                visitDate,
-                vaccineGiven: 'C',
-                createdAt: visitDate,
-              });
-            }
+        // Vaccine C: Due 84-98 days (12-14 weeks) from birth
+        if (hasVaccineB && ageInDays >= VACCINE_SCHEDULE.C.end) {
+          // Vaccine C window has passed
+          if (Math.random() < vaccineCProbability) {
+            const visitDay = randomInt(VACCINE_SCHEDULE.C.start, VACCINE_SCHEDULE.C.end);
+            const visitDate = addDays(childDob, visitDay);
+            villageVaccinations.push({
+              childId: childId,
+              visitDate: visitDate,
+              vaccineGiven: 'C',
+              createdAt: visitDate,
+            });
+          }
+        } else if (hasVaccineB && ageInDays >= VACCINE_SCHEDULE.C.start) {
+          // Child is currently in Vaccine C window
+          if (Math.random() < vaccineCProbability * 0.5) {
+            const visitDay = randomInt(VACCINE_SCHEDULE.C.start, Math.min(ageInDays, VACCINE_SCHEDULE.C.end));
+            const visitDate = addDays(childDob, visitDay);
+            villageVaccinations.push({
+              childId: childId,
+              visitDate: visitDate,
+              vaccineGiven: 'C',
+              createdAt: visitDate,
+            });
           }
         }
       }
     }
 
-    if (vaccinations.length > 0) {
-      await db.collection('vaccination_visits').insertMany(vaccinations);
-      console.log(`  Inserted ${vaccinations.length} vaccination records`);
+    // Insert all data for this village
+    if (villageParents.length > 0) {
+      await db.collection('parents').insertMany(villageParents);
     }
+    if (villageChildren.length > 0) {
+      await db.collection('children').insertMany(villageChildren);
+    }
+    if (villageVaccinations.length > 0) {
+      await db.collection('vaccination_visits').insertMany(villageVaccinations);
+    }
+
+    console.log(`  Inserted ${villageParents.length} parents`);
+    console.log(`  Inserted ${villageChildren.length} children`);
+    console.log(`  Inserted ${villageVaccinations.length} vaccination records`);
+
+    totalParents += villageParents.length;
+    totalChildren += villageChildren.length;
+    totalVaccinations += villageVaccinations.length;
   }
 
   // Print summary
@@ -334,6 +380,18 @@ async function seed() {
   console.log(`Parents: ${parentCount}`);
   console.log(`Children: ${childCount}`);
   console.log(`Vaccination records: ${vaccinationCount}`);
+
+  // Verify one-to-one parent-child relationship
+  const childrenPerParent = await db.collection('children').aggregate([
+    { $group: { _id: '$parentId', count: { $sum: 1 } } },
+    { $match: { count: { $gt: 1 } } },
+  ]).toArray();
+
+  if (childrenPerParent.length > 0) {
+    console.log(`\nWarning: ${childrenPerParent.length} parents have more than one child!`);
+  } else {
+    console.log('\nVerified: Each parent has exactly one child');
+  }
 
   await client.close();
   console.log('\nSeeding completed successfully!');

@@ -32,13 +32,31 @@ All date calculations use IST (UTC+5:30). See `lib/vaccination-logic.ts`.
 | `GET /api/children/[id]` | Get child with vaccination status |
 | `POST /api/vaccinations` | Record vaccination visit |
 | `GET /api/reports/vaccine-demand?villageId=V001&startDate=YYYY-MM-DD&endDate=YYYY-MM-DD` | Vaccine demand for village |
-| `GET /api/reports/dropout-rate` | 6-month dropout rates by village |
-| `GET /api/reports/wastage` | 6-month wastage stats by vaccine |
+| `GET /api/reports/dropout-rate` | 3-month dropout rates by village |
+| `GET /api/reports/wastage` | 3-month wastage stats by vaccine |
 
 ## Key Files
 
 - `lib/mongodb.ts` - Database connection with pooling
 - `lib/vaccination-logic.ts` - Status calculation and due window logic
 - `types/index.ts` - TypeScript interfaces
-- `scripts/seed.ts` - Seed data script (~800 parents, ~700 children)
-- `openapi.json` - OpenAPI 3.1 spec for Custom GPT Actions
+- `scripts/seed.ts` - Seed data script (~4550 parents, ~4550 children, 1:1 ratio)
+- `public/openapi.json` - OpenAPI 3.1 spec for Custom GPT Actions
+
+## Database Indexes
+
+| Collection | Index | Purpose |
+|------------|-------|---------|
+| `children` | `villageId` | Filter children by village |
+| `vaccination_visits` | `childId` | Lookup vaccinations for child |
+| `vaccination_visits` | `(vaccineGiven, visitDate)` | Filter by vaccine type and date |
+| `villages` | `villageId` | Village lookups |
+| `parents` | `govtId` | Parent search by govt ID |
+
+## Performance Notes
+
+- Report APIs use batch queries to avoid N+1 problems
+- `vaccine-demand`: 3 queries (village, children, vaccinations)
+- `dropout-rate`: 3 queries (villages, children, vaccinations)
+- Cold start on Vercel ~20-30s due to serverless + MongoDB connection
+- Warm requests ~1-3s

@@ -7,7 +7,7 @@
   },
   "servers": [
     {
-      "url": "https://simplecal.vercel.app",
+      "url": "https://simplecal-contoso.vercel.app",
       "description": "Production server"
     }
   ],

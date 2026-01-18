@@ -13,11 +13,19 @@ Demo AI agent to assist healthcare workers in Contoso's national vaccination pro
 
 ## Commands
 
-### simplecal / nhdb-app
+### simplecal
 ```bash
-cd simplecal  # or cd nhdb-app
+cd simplecal
 npm install
-npm run dev      # Local development on port 3000 (or 3001 for second app)
+npm run dev      # Local development on port 3001
+vercel --prod    # Deploy to production
+```
+
+### nhdb-app
+```bash
+cd nhdb-app
+npm install
+npm run dev      # Local development on port 3002
 vercel --prod    # Deploy to production
 ```
 
@@ -51,7 +59,7 @@ npm run mcp      # Start MCP server (separate terminal)
 
 When making UI changes or doing front-end development, use Playwright MCP to verify your work:
 
-1. **Navigate to the page**: Use `mcp__playwright__browser_navigate` to open the relevant URL (e.g., `http://localhost:3000` for simplecal or `http://localhost:3001` for nhdb-app)
+1. **Navigate to the page**: Use `mcp__playwright__browser_navigate` to open the relevant URL (e.g., `http://localhost:3001` for simplecal or `http://localhost:3002` for nhdb-app)
 2. **Capture the page state**: Use `mcp__playwright__browser_snapshot` to get an accessibility snapshot of the current page - this is preferred over screenshots for understanding page structure
 3. **Take screenshots**: Use `mcp__playwright__browser_take_screenshot` to capture visual state for analyzing layout, styling, and visual regressions
 4. **Interact with elements**: Use `mcp__playwright__browser_click`, `mcp__playwright__browser_type`, and other interaction tools to test functionality

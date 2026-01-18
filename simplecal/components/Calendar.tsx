@@ -14,6 +14,7 @@ interface CalendarProps {
   onAddEvent: () => void;
   onEventClick: (event: EventResponse) => void;
   onTimeSlotClick: (date: Date) => void;
+  onDemoAction: (action: 'deleteAll' | 'createPastOutreach' | 'createNextTwoWeeks') => void;
 }
 
 export default function Calendar({
@@ -26,6 +27,7 @@ export default function Calendar({
   onAddEvent,
   onEventClick,
   onTimeSlotClick,
+  onDemoAction,
 }: CalendarProps) {
   return (
     <div className="flex flex-col h-screen bg-white">
@@ -35,6 +37,7 @@ export default function Calendar({
         onNextWeek={onNextWeek}
         onToday={onToday}
         onAddEvent={onAddEvent}
+        onDemoAction={onDemoAction}
       />
       {isLoading ? (
         <div className="flex-1 flex items-center justify-center">

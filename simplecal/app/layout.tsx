@@ -5,7 +5,7 @@ import './globals.css';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'SimpleCal - Vaccination Outreach Calendar',
+  title: 'SimpleCal Calendar',
   description: 'Calendar application for scheduling vaccination outreach visits',
 };
 

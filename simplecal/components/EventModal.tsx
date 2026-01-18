@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { EventResponse, CreateEventInput } from '@/lib/types';
 
 interface EventModalProps {
@@ -28,23 +28,58 @@ export default function EventModal({
   const [endTime, setEndTime] = useState('10:00');
   const [isAllDay, setIsAllDay] = useState(false);
 
+  // Validate that start datetime is before end datetime
+  const dateTimeError = useMemo(() => {
+    if (!startDate || !endDate) return null;
+
+    if (isAllDay) {
+      const start = new Date(`${startDate}T00:00:00`);
+      const end = new Date(`${endDate}T00:00:00`);
+      if (start > end) {
+        return 'End date must be on or after start date';
+      }
+    } else {
+      if (!startTime || !endTime) return null;
+      const start = new Date(`${startDate}T${startTime}:00`);
+      const end = new Date(`${endDate}T${endTime}:00`);
+      if (start >= end) {
+        return 'End date/time must be after start date/time';
+      }
+    }
+    return null;
+  }, [startDate, startTime, endDate, endTime, isAllDay]);
+
   useEffect(() => {
+    // Helper to format date as YYYY-MM-DD in local timezone
+    const formatLocalDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    // Helper to format time as HH:MM in local timezone
+    const formatLocalTime = (date: Date) => {
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    };
+
     if (event) {
-      // View/Edit mode
+      // View/Edit mode - use local timezone
       setName(event.name);
       setDescription(event.description);
       const start = new Date(event.startTime);
       const end = new Date(event.endTime);
-      setStartDate(start.toISOString().split('T')[0]);
-      setStartTime(start.toTimeString().slice(0, 5));
-      setEndDate(end.toISOString().split('T')[0]);
-      setEndTime(end.toTimeString().slice(0, 5));
+      setStartDate(formatLocalDate(start));
+      setStartTime(formatLocalTime(start));
+      setEndDate(formatLocalDate(end));
+      setEndTime(formatLocalTime(end));
       setIsAllDay(event.isAllDay);
     } else if (selectedDate) {
-      // Create mode with selected date
-      const dateStr = selectedDate.toISOString().split('T')[0];
-      setStartDate(dateStr);
-      setEndDate(dateStr);
+      // Create mode with selected date - use local timezone
+      setStartDate(formatLocalDate(selectedDate));
+      setEndDate(formatLocalDate(selectedDate));
       setName('');
       setDescription('');
       setStartTime('09:00');
@@ -56,22 +91,27 @@ export default function EventModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    let startDateTime: string;
-    let endDateTime: string;
+    // Prevent submission if there's a validation error
+    if (dateTimeError) return;
+
+    let startDateTimeObj: Date;
+    let endDateTimeObj: Date;
 
     if (isAllDay) {
-      startDateTime = `${startDate}T00:00:00.000Z`;
-      endDateTime = `${endDate}T23:59:59.999Z`;
+      // For all-day events, use local midnight
+      startDateTimeObj = new Date(`${startDate}T00:00:00`);
+      endDateTimeObj = new Date(`${endDate}T23:59:59.999`);
     } else {
-      startDateTime = `${startDate}T${startTime}:00.000Z`;
-      endDateTime = `${endDate}T${endTime}:00.000Z`;
+      // Create Date objects in local timezone
+      startDateTimeObj = new Date(`${startDate}T${startTime}:00`);
+      endDateTimeObj = new Date(`${endDate}T${endTime}:00`);
     }
 
     onCreate({
       name,
       description,
-      startTime: startDateTime,
-      endTime: endDateTime,
+      startTime: startDateTimeObj.toISOString(),
+      endTime: endDateTimeObj.toISOString(),
       isAllDay,
     });
   };
@@ -95,7 +135,7 @@ export default function EventModal({
           </h2>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-gray-100 rounded transition-colors"
+            className="p-1 text-gray-700 hover:bg-gray-100 rounded transition-colors border"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -256,6 +296,12 @@ export default function EventModal({
               )}
             </div>
 
+            {dateTimeError && (
+              <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-md">
+                {dateTimeError}
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 pt-4">
               <button
                 type="button"
@@ -266,7 +312,12 @@ export default function EventModal({
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 transition-colors"
+                disabled={!!dateTimeError}
+                className={`px-4 py-2 font-medium rounded-md transition-colors ${
+                  dateTimeError
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
               >
                 Create Event
               </button>

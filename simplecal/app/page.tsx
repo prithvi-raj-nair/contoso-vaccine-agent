@@ -138,6 +138,39 @@ export default function Home() {
     }
   };
 
+  const handleDemoAction = async (action: 'deleteAll' | 'createPastOutreach' | 'createNextTwoWeeks') => {
+    const actionMessages = {
+      deleteAll: 'Are you sure you want to delete ALL events?',
+      createPastOutreach: 'Create 5 past vaccine outreach events?',
+      createNextTwoWeeks: 'Create demo events for the next 2 weeks?',
+    };
+
+    if (!confirm(actionMessages[action])) return;
+
+    try {
+      const response = await fetch('/api/demo', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        await fetchEvents();
+        alert(data.message);
+      } else {
+        console.error('Demo action failed:', data.error);
+        alert('Demo action failed: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Error executing demo action:', error);
+      alert('Error executing demo action');
+    }
+  };
+
   return (
     <main>
       <Calendar
@@ -150,6 +183,7 @@ export default function Home() {
         onAddEvent={handleAddEvent}
         onEventClick={handleEventClick}
         onTimeSlotClick={handleTimeSlotClick}
+        onDemoAction={handleDemoAction}
       />
       <EventModal
         isOpen={isModalOpen}

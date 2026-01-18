@@ -1,0 +1,23 @@
+- The buttons to change the week I am looking at (left and right arrow buttons) are not visible unless I hover on them. Change the styling to match the “today” button.
+    - This visibility issue is a problem for the close button ‘X’ on the add event modal and the event details modal. Fix that also
+- There is some problem in the timezone
+    - When I create an event for 9:00AM on 18Jan, the event gets created but the event details show 2:30PM (which is a difference of 5:30 mins, which also matches the india time difference from UTC)
+    - Even though the event details says 2:30, the event is placed on the calendar view next to 5PM. I don’t know if this is a timezone issue or just a UI logic issue.
+- Calendar view UI problems
+    - The horizontal markings for the time of day in the left column does not align properly with the horizontal lines across all the days of the week
+    - I think this is a problem with the height of the rows in day columns since I can see that there are 24 rows but the alignment slowly breaks due to the height
+- Add event start and end logic
+    - Add some validation to prevent adding event if start date time is not before end date time
+    - Show a real time error
+- Change the title of the page that appears in the browser tab to just say “SimpleCal Calendar”
+- For the purpose of the demo, add a small three dot menu button on top which opens a small drop down menu with few actions that are specific to the demo
+    - Action 1 - delete all events
+    - Action 2 - Create past outreach events
+        - This selects 5 out of the 7 villages at random and adds one vaccine outreach event per village in the last 2 weeks by randomly selecting week days (mon-fri)
+    - Action 3 - Create next 2 week events
+        - Create two holidays by selecting random days in current week and next week (monday to friday). There should be one holiday in each week. The title of the event can be “Holiday”. The holidays should be all day events
+        - Create 3 Other events with following names and details. Select any 3 days at random from monday-friday of current week and next week. These should not clash with the days selected for holidays
+            - Health minister visit - 9am to 5pm
+            - Wellness seminar - 10am to 2pm
+            - School health visit - 10am - 4pm
+- set the config so that dev server always starts on port 3001 so as to not clash with the other apps

@@ -1,0 +1,861 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NHDB - National Health Database API",
+    "description": "API for managing patient records and vaccination tracking for Contoso's vaccination program",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://nhdb-app.vercel.app",
+      "description": "Production server"
+    }
+  ],
+  "paths": {
+    "/api/villages": {
+      "get": {
+        "operationId": "getVillages",
+        "summary": "Get all villages",
+        "description": "Returns a list of all villages in the program",
+        "responses": {
+          "200": {
+            "description": "List of villages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "villages": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Village"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parents": {
+      "get": {
+        "operationId": "searchParentByGovtId",
+        "summary": "Search parent by government ID",
+        "description": "Find a parent by their government ID and return their details along with their children",
+        "parameters": [
+          {
+            "name": "govtId",
+            "in": "query",
+            "required": true,
+            "description": "The government ID of the parent",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Parent found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "parent": {
+                      "$ref": "#/components/schemas/ParentWithVillage"
+                    },
+                    "children": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Child"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Parent not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createParent",
+        "summary": "Create a new parent",
+        "description": "Register a new parent in the system",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateParentInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Parent created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "parent": {
+                      "$ref": "#/components/schemas/Parent"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Parent with this government ID already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/parents/{id}": {
+      "get": {
+        "operationId": "getParentById",
+        "summary": "Get parent by ID",
+        "description": "Get parent details by MongoDB ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The MongoDB ID of the parent",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Parent found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "parent": {
+                      "$ref": "#/components/schemas/ParentWithVillage"
+                    },
+                    "children": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Child"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Parent not found"
+          }
+        }
+      }
+    },
+    "/api/children": {
+      "get": {
+        "operationId": "getChildrenByParent",
+        "summary": "Get children by parent ID",
+        "description": "Get all children of a parent with their vaccination status",
+        "parameters": [
+          {
+            "name": "parentId",
+            "in": "query",
+            "required": true,
+            "description": "The MongoDB ID of the parent",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of children",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "children": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ChildWithStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createChild",
+        "summary": "Create a new child",
+        "description": "Register a new child linked to a parent",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChildInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Child created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "child": {
+                      "$ref": "#/components/schemas/Child"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/children/{id}": {
+      "get": {
+        "operationId": "getChildById",
+        "summary": "Get child details with vaccination status",
+        "description": "Get child details including vaccination history and status",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "The MongoDB ID of the child",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Child found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "child": {
+                      "$ref": "#/components/schemas/ChildWithDetails"
+                    },
+                    "vaccinationStatus": {
+                      "$ref": "#/components/schemas/VaccinationStatus"
+                    },
+                    "vaccinationHistory": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/VaccinationVisit"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Child not found"
+          }
+        }
+      }
+    },
+    "/api/vaccinations": {
+      "get": {
+        "operationId": "getVaccinationHistory",
+        "summary": "Get vaccination history for a child",
+        "description": "Get all vaccination records for a specific child",
+        "parameters": [
+          {
+            "name": "childId",
+            "in": "query",
+            "required": true,
+            "description": "The MongoDB ID of the child",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vaccination history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "vaccinations": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/VaccinationVisit"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "recordVaccination",
+        "summary": "Record a vaccination visit",
+        "description": "Record a vaccination visit for a child",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVaccinationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Vaccination recorded successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "vaccination": {
+                      "$ref": "#/components/schemas/VaccinationVisit"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Vaccine already given to this child"
+          }
+        }
+      }
+    },
+    "/api/reports/vaccine-demand": {
+      "get": {
+        "operationId": "getVaccineDemand",
+        "summary": "Get vaccine demand for a village",
+        "description": "Calculate how many of each vaccine type are needed for a village in a given date range",
+        "parameters": [
+          {
+            "name": "villageId",
+            "in": "query",
+            "required": true,
+            "description": "The village ID (e.g., V001)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "startDate",
+            "in": "query",
+            "required": true,
+            "description": "Start date in YYYY-MM-DD format",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          },
+          {
+            "name": "endDate",
+            "in": "query",
+            "required": true,
+            "description": "End date in YYYY-MM-DD format",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Vaccine demand calculated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VaccineDemandReport"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/dropout-rate": {
+      "get": {
+        "operationId": "getDropoutRate",
+        "summary": "Get dropout rates",
+        "description": "Get monthly dropout rates by village for the last 6 months",
+        "responses": {
+          "200": {
+            "description": "Dropout rates calculated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "months": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MonthlyDropoutReport"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/wastage": {
+      "get": {
+        "operationId": "getWastage",
+        "summary": "Get vaccine wastage",
+        "description": "Get vaccine wastage trends for the last 6 months",
+        "responses": {
+          "200": {
+            "description": "Wastage calculated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "months": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MonthlyWastageReport"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Village": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string"
+          },
+          "villageId": {
+            "type": "string",
+            "description": "Village ID (V001-V007)"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Parent": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string"
+          },
+          "govtId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "villageId": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ParentWithVillage": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Parent"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "villageName": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "Child": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "villageId": {
+            "type": "string"
+          },
+          "govtId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ChildWithStatus": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Child"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "vaccinationStatus": {
+                "$ref": "#/components/schemas/VaccinationStatus"
+              }
+            }
+          }
+        ]
+      },
+      "ChildWithDetails": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Child"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "parentName": {
+                "type": "string"
+              },
+              "villageName": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      },
+      "VaccinationStatus": {
+        "type": "object",
+        "properties": {
+          "vaccinesGiven": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["A", "B", "C"]
+            }
+          },
+          "nextVaccineDue": {
+            "type": "string",
+            "enum": ["A", "B", "C"],
+            "nullable": true
+          },
+          "dueStatus": {
+            "type": "string",
+            "enum": ["overdue", "due", "upcoming", "complete"]
+          },
+          "dueWindow": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "end": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      },
+      "VaccinationVisit": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string"
+          },
+          "childId": {
+            "type": "string"
+          },
+          "visitDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "vaccineGiven": {
+            "type": "string",
+            "enum": ["A", "B", "C", "none_required", "not_available"]
+          },
+          "notes": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateParentInput": {
+        "type": "object",
+        "required": ["govtId", "name", "dateOfBirth", "villageId"],
+        "properties": {
+          "govtId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date"
+          },
+          "villageId": {
+            "type": "string"
+          },
+          "phoneNumber": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateChildInput": {
+        "type": "object",
+        "required": ["name", "dateOfBirth", "parentId", "villageId"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string",
+            "format": "date"
+          },
+          "parentId": {
+            "type": "string"
+          },
+          "villageId": {
+            "type": "string"
+          },
+          "govtId": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateVaccinationInput": {
+        "type": "object",
+        "required": ["childId", "visitDate", "vaccineGiven"],
+        "properties": {
+          "childId": {
+            "type": "string"
+          },
+          "visitDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "vaccineGiven": {
+            "type": "string",
+            "enum": ["A", "B", "C", "none_required", "not_available"]
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      },
+      "VaccineDemandReport": {
+        "type": "object",
+        "properties": {
+          "villageId": {
+            "type": "string"
+          },
+          "villageName": {
+            "type": "string"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "demand": {
+            "type": "object",
+            "properties": {
+              "A": {
+                "type": "integer"
+              },
+              "B": {
+                "type": "integer"
+              },
+              "C": {
+                "type": "integer"
+              }
+            }
+          },
+          "totalChildren": {
+            "type": "integer"
+          },
+          "childrenNeedingVaccines": {
+            "type": "integer"
+          }
+        }
+      },
+      "MonthlyDropoutReport": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "description": "Month in YYYY-MM format"
+          },
+          "villages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "villageId": {
+                  "type": "string"
+                },
+                "villageName": {
+                  "type": "string"
+                },
+                "childrenStarted": {
+                  "type": "integer"
+                },
+                "childrenCompleted": {
+                  "type": "integer"
+                },
+                "dropoutRate": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "MonthlyWastageReport": {
+        "type": "object",
+        "properties": {
+          "month": {
+            "type": "string",
+            "description": "Month in YYYY-MM format"
+          },
+          "wastage": {
+            "type": "object",
+            "properties": {
+              "A": {
+                "$ref": "#/components/schemas/WastageDetails"
+              },
+              "B": {
+                "$ref": "#/components/schemas/WastageDetails"
+              },
+              "C": {
+                "$ref": "#/components/schemas/WastageDetails"
+              }
+            }
+          }
+        }
+      },
+      "WastageDetails": {
+        "type": "object",
+        "properties": {
+          "expected": {
+            "type": "integer"
+          },
+          "actual": {
+            "type": "integer"
+          },
+          "wasted": {
+            "type": "integer"
+          },
+          "rate": {
+            "type": "number"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

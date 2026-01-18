@@ -7,7 +7,7 @@ Demo AI agent to assist healthcare workers in Contoso's national vaccination pro
 | Folder | Purpose | Stack | Status |
 |--------|---------|-------|--------|
 | `simplecal/` | Calendar app for scheduling outreach visits | Next.js 14, Tailwind CSS, MongoDB | Implemented |
-| `nhdb-app/` | National Health Database app for patient records and vaccination tracking | Next.js (App Router), Tailwind CSS, MongoDB | Not started |
+| `nhdb-app/` | National Health Database app for patient records and vaccination tracking | Next.js 16, Tailwind CSS, MongoDB | Implemented |
 | `vercel-gpt-hello/` | POC for Custom GPT API integration | Vercel Serverless Functions, MongoDB | POC |
 | `mcp-hello-server/` | POC for Claude Desktop MCP integration | Node.js, Express, MCP SDK | POC |
 

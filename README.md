@@ -1,6 +1,6 @@
 # ContosoVac Agent
 
-An AI-powered agent built as a Custom GPT on ChatGPT to assist healthcare workers managing routine immunisation outreach in Contoso's national vaccination program. This project was created to explore how the "Custom GPT" feature of ChatGPT can be used to quickly build agents that perform small but impactful tasks for users in the field.
+An AI agent built as a Custom GPT on ChatGPT to assist healthcare workers managing routine immunisation outreach in Contoso's national vaccination program. This project was created to explore how the "Custom GPT" feature of ChatGPT can be used to quickly build agents that perform small but impactful tasks for users in the field.
 
 ## Demo
 

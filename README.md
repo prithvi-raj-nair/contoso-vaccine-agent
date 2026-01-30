@@ -56,6 +56,8 @@ Two key user personas were identified with distinct challenges:
 
 ## Solution Architecture
 
+![Custom GPT Architecture](docs/slide%20images/custom-gpt-architecture.png)
+
 The ContosoVac Agent is a Custom GPT that connects to two backend applications via API calls:
 
 | App | Purpose | Stack |
